@@ -1,0 +1,83 @@
+
+    model{                                           
+    for (i in 1:L.n)     {                              # larval growth (known ages)
+
+    LL[i] <-  Linf.mu1 * (1-exp(-k1[i]*(t[i]-t0)))    # objective function
+    LL.ob[i] ~ dnorm(LL[i], tau.L)I(0,)                    # likelihood function 
+    t.ob[i] ~ dnorm(t[i], tau.t)I(0,)                      # likelihood function
+    
+        t[i] ~ dunif(0.01, t.m)                      # prior (with hyper parameters)
+        
+        k1[i] ~ dnorm(k.mu1, k.tau1)I(0,)                  # prior (with hyper parameters)
+
+    # posterior prediction
+    L.pred[i] ~ dnorm(LL[i], tau.L)I(0,)         
+    q.value[i] <- step(L.pred[i] - LL[i])
+
+    
+  
+  }
+    L.m <- Linf.mu1 * (1-exp(-k.mu1*(t.m-t0)))
+  
+    for (i in 1:N)     {                              # adult growth (unknown ages)
+      for (j in 1:n.caps[i]-1)   {                    # j indexes recap occasion
+    
+      dL[i,j] <-  (Linf2[i] - L[i,j]) *(1.0 - exp(-k2[i]*(dt[i,j])))   # objective function   
+      dL.ob[i,j] ~ dnorm(dL[i,j], tau.a)                               # likelihood function
+      L.ob[i,j] ~ dnorm(L[i,j], tau.L)I(0,)                                 # likelihood function
+
+        L[i,j+1] ~ dunif(40, 70)                                       # prior
+
+
+    # posterior prediction
+    dL.pred[i,j] ~ dnorm(dL[i,j], tau.a)
+    p.value[i,j] <- step(L[i,j] + dL.pred[i,j] - L[i,j+1])
+
+    
+      }
+           
+            L[i,1] <- (Linf2[i] - L.m) *(1.0 - exp(-k2[i]*(t.a[i]-t.m))) + L.m
+            
+            t.a[i] ~ dlnorm(1,0.5)I(t.m,12)
+
+            t1[i] <- t.m - log((Linf2[i]-L.m)/Linf2[i])/-k2[i]
+
+            Linf2[i] ~ dnorm(Linf.mu2,  Linf.tau2)I(0,)              # prior (with hyperparameters)
+            k2[i] ~ dnorm(k.mu2, k.tau2)I(0,)                        # prior (with hyperparameters)
+  }    
+
+
+  # Priors
+  
+    Linf.std2 <- sqrt(1/Linf.tau2)
+    
+    k.std1 <- sqrt(1/k.tau1)
+    k.std2 <- sqrt(1/k.tau2)
+    
+    L.std <- sqrt(1/tau.L)   
+    a.std <- sqrt(1/tau.a)   
+    t.std <- sqrt(1/tau.t)   
+
+    Linf.mu1 ~ dunif(30, 70)
+    Linf.mu2 ~ dunif(50, 70)
+
+
+    Linf.tau2 ~ dgamma(0.01, 0.01) 
+    
+    k.mu1 ~ dunif(2, 4)
+    k.mu2 ~ dlnorm(0, 10)I(0,1.5) 
+
+
+    k.tau1 ~ dgamma(0.01, 0.01) 
+    k.tau2 ~ dgamma(0.01, 0.01)
+    
+    tau.L ~ dgamma(0.01, 0.01) 
+    tau.a ~ dgamma(0.01, 0.01) 
+    tau.t ~ dgamma(0.01, 0.01) 
+    
+    t0 ~ dunif(-2, 2)
+    t.m ~ dunif(0.3, 0.5)
+    t1.mu <- mean(t1[])
+  }
+    
+    
