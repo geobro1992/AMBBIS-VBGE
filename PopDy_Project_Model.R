@@ -236,7 +236,7 @@ cat("
 
     LL[i] <-  Linf.mu1 * (1-exp(-k1[i]*(t[i]-t0)))    # objective function
     LL.ob[i] ~ dnorm(LL[i], tau.L)I(0,)                    # likelihood function 
-    t.ob[i] ~ dnorm(t[i], tau.t)I(0,1)                      # likelihood function
+    t.ob[i] ~ dnorm(t[i], tau.t)I(t.ob[i],0.5)                      # likelihood function
     
         t[i] ~ dunif(0.01, t.m)                      # prior (with hyper parameters)
         

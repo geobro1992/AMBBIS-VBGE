@@ -343,9 +343,9 @@ parameters <- c( "Linf.mu1", "Linf.mu2", "Linf.std2", "k.mu1", "k.std1", "k.mu2"
                  "t", "L.pred", "q.value", "L", "dL.pred", "p.value", "t.a", "t1")
  
 # MCMC settings
-ni <- 1000000
-nt <- 200
-nb <- 10000
+ni <- 1000
+nt <- 20
+nb <- 10
 nc <- 1
 
 # Call WinBUGS from R (BRT 40 min)

@@ -4,11 +4,11 @@
 
     LL[i] <-  Linf.mu1 * (1-exp(-k1[i]*(t[i]-t0)))    # objective function
     LL.ob[i] ~ dnorm(LL[i], tau.L)I(0,)                    # likelihood function 
-    t.ob[i] ~ dnorm(t[i], tau.t)I(0,)                      # likelihood function
+    t.ob[i] ~ dnorm(t[i], tau.t)I(t.ob[i],0.5)                      # likelihood function
     
         t[i] ~ dunif(0.01, t.m)                      # prior (with hyper parameters)
         
-        k1[i] ~ dnorm(k.mu1, k.tau1)I(0,)                  # prior (with hyper parameters)
+        k1[i] ~ dnorm(k.mu1, k.tau1)I(2,4)                  # prior (with hyper parameters)
 
     # posterior prediction
     L.pred[i] ~ dnorm(LL[i], tau.L)I(0,)         
@@ -43,7 +43,7 @@
             t1[i] <- t.m - log((Linf2[i]-L.m)/Linf2[i])/-k2[i]
 
             Linf2[i] ~ dnorm(Linf.mu2,  Linf.tau2)I(0,)              # prior (with hyperparameters)
-            k2[i] ~ dnorm(k.mu2, k.tau2)I(0,)                        # prior (with hyperparameters)
+            k2[i] ~ dnorm(k.mu2, k.tau2)I(0,2)                        # prior (with hyperparameters)
   }    
 
 
