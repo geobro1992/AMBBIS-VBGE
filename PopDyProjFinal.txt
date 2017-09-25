@@ -65,7 +65,7 @@
     Linf.tau2 ~ dgamma(0.01, 0.01) 
     
     k.mu1 ~ dunif(2, 4)
-    k.mu2 ~ dlnorm(0, 10)I(0,1.5) 
+    k.mu2 ~ dlnorm(0, 10)I(0,5) 
 
 
     k.tau1 ~ dgamma(0.01, 0.01) 
