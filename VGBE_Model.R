@@ -199,6 +199,8 @@ model{
         
     k1[i] ~ dnorm(k.mu1, k.tau1) I(2, 4)                    # prior (with hyper parameters)
 
+  L.m[i] <- Linf.mu1 * (1 - exp(-k1[i] * (t.m - t0)))
+
     # posterior prediction
     L.pred[i] ~ dnorm(LL[i], tau.L)I(0,)         
     q.value[i] <- step(L.pred[i] - LL[i])
@@ -207,30 +209,44 @@ model{
   
   }
   
-  L.m <- Linf.mu1 * (1 - exp(-k.mu1 * (t.m - t0)))
-  
-    for (i in 1:N) {                                                           # adult growth (unknown ages)
+
+  for (i in 1:N) {                                                           # adult growth (unknown ages)
       for (j in 1:n.caps[i]-1) {                                               # j indexes recap occasion
         dL[i, j] <-  (Linf2[i] - L[i, j]) * (1.0 - exp(-k2[i] * (dt[i, j])))   # objective function   
         dL.ob[i, j] ~ dnorm(dL[i, j], tau.a)                                   # likelihood function
         L.ob[i, j] ~ dnorm(L[i, j], tau.L) I(0, )                              # likelihood function
 
-        L[i, j+1] ~ dunif(40, 70)                                              # prior
-
+        L[i, j] <- (Linf2[i] - L.meta) * (1.0 - exp(-k2[i] * (t.a[i] - (am[i, j] + t.m)))) + L.meta
 
 # posterior prediction
         dL.pred[i, j] ~ dnorm(dL[i, j], tau.a)
         p.value[i, j] <- step(L[i, j] + dL.pred[i, j] - L[i, j+1])
-      }  
-           
-      L[i,1] <- (Linf2[i] - L.m) * (1.0 - exp(-k2[i] * (t.a[i] - t.m))) + L.m
-      t.a[i] ~ dlnorm(1, 0.5) I(t.m, 12)
+     } 
 
-      t1[i] <- t.m - log((Linf2[i] - L.m) / Linf2[i]) / -k2[i]
 
-      Linf2[i] ~ dnorm(Linf.mu2,  Linf.tau2) I(0, )               # prior (with hyperparameters)
-      k2[i] ~ dnorm(k.mu2, k.tau2) I(0, 2)                        # prior (with hyperparameters)
-    }      
+
+    for (j in n.caps[i]:n.caps[i]) {
+        L[i,j] <- (Linf2[i] - L.meta) * (1.0 - exp(-k2[i] * (t.a[i] - t.m))) + L.meta
+    }    
+
+    t1[i] <- t.m - log((Linf2[i] - L.meta) / Linf2[i]) / -k2[i]
+
+    Linf2[i] ~ dnorm(Linf.mu2,  Linf.tau2) I(0, )               # prior (with hyperparameters)
+    k2[i] ~ dnorm(k.mu2, k.tau2) I(0, 2)                        # prior (with hyperparameters)
+    min.a[i] <- sum(dt[i,1:n.caps[i]-1])
+    t.a[i] ~ dunif(min.a[i], 15)    
+}      
+
+
+for (i in 1:N) {
+      L.m[i+L.n] <- Linf2[i] * (1 - exp(-k2[i] * (t.m - t0)))
+}
+
+L.meta <- mean(L.m[])
+
+for(i in 1:761){
+  s.meta[i] ~ dnorm(L.meta, tau.m)
+}
 
 # Priors
   
@@ -241,14 +257,15 @@ model{
   L.std <- sqrt(1 / tau.L)   
   a.std <- sqrt(1 / tau.a)   
   t.std <- sqrt(1 / tau.t)   
+  m.std <- sqrt(1 / tau.m)   
 
-  Linf.mu1 ~ dunif(30, 70)
-  Linf.mu2 ~ dunif(50, 70)
+  Linf.mu1 ~ dunif(30, 50)
+  Linf.mu2 ~ dunif(50, 80)
 
   Linf.tau2 ~ dgamma(0.01, 0.01) 
     
-  k.mu1 ~ dunif(2, 4)
-  k.mu2 ~ dlnorm(0, 10) I(0, 5) 
+  k.mu1 ~ dunif(1, 4)
+  k.mu2 ~ dunif(0, 2) 
 
   k.tau1 ~ dgamma(0.01, 0.01) 
   k.tau2 ~ dgamma(0.01, 0.01)
@@ -256,10 +273,75 @@ model{
   tau.L ~ dgamma(0.01, 0.01) 
   tau.a ~ dgamma(0.01, 0.01) 
   tau.t ~ dgamma(0.01, 0.01) 
-    
+  tau.m ~ dgamma(0.01, 0.01) 
+  
   t0 ~ dunif(-2, 2)
-  t.m ~ dunif(0.3, 0.5)
+  t.m ~ dunif(0.2, 0.5)
   t1.mu <- mean(t1[])
+}
+  ", fill = TRUE)
+sink()
+
+
+#----------------------------
+# New model parameterization
+#---------------------------
+
+sink("VBGE2018.txt")
+cat("
+    model{
+
+#LARVAL PROCESS
+for( i in 1 : N.L) {
+    pred.LL[i]<-Linf1*(1-exp(-k1*(age.p[i]-t0)))   #predicted length
+    LL[i] ~ dnorm(pred.LL[i],prec.LL)
+}  
+    pred.m<-Linf1*(1-exp(-k1*(t.m-t0)))
+    
+    # Priors
+    Linf1~dnorm(pred.m,prec.m)  
+    k1~dunif(3,8)  
+    t0 ~ dunif(-0.5,0.5)
+    prec.LL<-1/(sd.LL*sd.LL)
+    sd.LL~dunif(0,1)
+    
+    
+    #METAMORPH PROCESS
+for( i in 1 : N.M) {
+    LM[i] ~ dnorm(pred.m, prec.m)
+}
+    
+#Priors
+prec.m<-1/(sd.m*sd.m)
+sd.m~dunif(0,5)
+    
+    
+    #ADULT PROCESS
+for( i in 1 : N.A) {
+    pred.L0[i]<-Linf2 - (Linf2 - pred.m)*(exp(-k2*(t.a[i]-t.m)))   #predicted length at release
+    L0[i]~dnorm(pred.L0[i],prec.L)
+    
+    for(j in 1:J[i]){
+      pred.L[i,j]<-Linf2 - (Linf2 - pred.m)*(exp(-k2*(t.a[i]+dt[i,j]-t.m))) #length at jth recapture
+      L[i,j]~dnorm(pred.L[i,j],prec.L)
+}}
+    
+    #PRIORS
+for( i in 1 : N.A) {
+    t.a[i]~dlnorm(log.centre,prec.t) I(t.m,30)
+} 
+    
+Linf2~dnorm(60,.002)  
+k2~dunif(0,5)  
+    
+t.m ~ dunif(0.2, 0.4)
+    
+prec.L<-1/(sd.L*sd.L)
+sd.L~dunif(0,2)
+    
+centre~dunif(0,200)
+log.centre<-log(centre)
+prec.t~dgamma(.01,.01)
 }
   ", fill = TRUE)
 sink()

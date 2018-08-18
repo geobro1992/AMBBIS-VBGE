@@ -3,6 +3,10 @@ library(R2WinBUGS)
 library(ggplot2)
 library(plyr)
 library(reshape)
+library(RODBC)
+library(tidyverse)
+library(lubridate)
+library(forcats)
 
 #------------
 # Model 1
@@ -203,21 +207,34 @@ A_ob = df$Age
 S = df$SVL
 dat = na.omit(cbind(A_ob, S, df$Group))
 dat[which(dat[, 3] == 1), 1] = dat[which(dat[, 3] == 1), 1] - 25  
+dat = as.data.frame(dat)
 
-df = read.csv("FW_main.csv", sep = ",")
-df = df[, c("MASTER.ID", "Date", "Sex", "Weight", "TL", "SVL_1stMeasurement")]
+ggplot(dat, aes(x = A_ob / 365, y = S)) +
+  geom_point(aes(colour = as.factor(dat[, 3])))
 
-dl = split(df, df$MASTER.ID, drop = T)
+#------------------------------------------
+# Connect to Minnow server
+channel <- odbcConnectAccess2007("//minnow.cc.vt.edu/cnre2/Eglin/projects/FlatwoodsSalamander/DriftFence/DriftFenceDatabase/Driftfence Database_GB_29Nov17_FRONT_END.accdb")
+
+# Read in capture table
+df <- sqlFetch(channel,"Flatwoods Capture") %>%
+  tbl_df() %>%
+  filter(MasterID != 0) %>%
+  glimpse()
+#df = read.csv("FW_main.csv", sep = ",")
+df = df[, c("MasterID", "Date", "Sex", "Weight", "TL", "SVL_1stMeasurement")]
+df = as.data.frame(df)
+dl = split(df, df$MasterID, drop = T)
 names(dl) = NULL
 
 # create empty vectors for all the VBGE data
-TLt = matrix(NA, 353, 50)
-SVLt = matrix(NA, 353, 50)
-Wt = matrix(NA, 353, 50)
-dt = matrix(NA, 353, 50)
-dSVL = matrix(NA, 353, 50)
-dW = matrix(NA, 353, 50)
-dTL = matrix(NA, 353, 50)
+TLt = matrix(NA, 373, 50)
+SVLt = matrix(NA, 373, 50)
+Wt = matrix(NA, 373, 50)
+dt = matrix(NA, 373, 50)
+dSVL = matrix(NA, 373, 50)
+dW = matrix(NA, 373, 50)
+dTL = matrix(NA, 373, 50)
 ID = vector()
 n = vector()
 count = 0
@@ -260,6 +277,17 @@ for (i in 1:length(n)) {
   lco[i] = sum(n[1:i])
 } 
 
+dt[ is.na(dt) ] <- 0
+dt.sums = data.frame(t(apply(dt,1,cumsum)))
+
+dt.s = matrix(NA, 373, 50)
+for (i in 1:373) {
+
+  dt.s[i, 1:(n[i] - 1)] = as.numeric(dt.sums[i, (n[i] - 1):1])/365
+
+}
+
+
 # Put all together in a list
 bugs.data = list(
 # Larval data
@@ -268,10 +296,12 @@ bugs.data = list(
   L.n = length(dat[, 1]),
 # Adult data  
   n.caps = n,
+  am = dt.s,
   L.ob = SVLt,
   dL.ob = dSVL,
   dt = dt / 365,
-  N = length(n)
+  N = length(n),
+  s.meta = as.numeric(s.meta)
 )
 
 
@@ -281,18 +311,18 @@ bugs.data = list(
 #---------------------
 
 # Initial values
-inits <- function(){list(Linf.mu1 = 60, k1 = runif(411, 3.2, 3.5), k.tau1 = 4, t0 = 0,
-                         Linf2 = runif(353, 50, 70), k2 = runif(353, 0.4, 0.6), Linf.tau2 = .1, k.tau2 = 2,
-                         t = runif(411, 0.19, 0.21), t.a = runif(353, 2, 8), tau.L = 4, tau.a = 4, tau.t = 4,
+inits <- function(){list(Linf.mu1 = 40, k1 = runif(411, 2.5, 2.8), k.tau1 = 2.5, t0 = 0,
+                         Linf2 = runif(353, 90, 100), k2 = runif(353, 1.4, 1.6), Linf.tau2 = .1, k.tau2 = 2,
+                         t = runif(411, 0.1, 0.15), t.a = runif(353, 6, 7), tau.L = 4, tau.a = 4, tau.t = 4,
                          t.m = 0.4)}  
 
 # Parameters monitored
 parameters <- c( "Linf.mu1", "Linf.mu2", "Linf.std2", "k.mu1", "k.std1", "k.mu2", "k.std2", 
                  "t.m", "L.m", "L.std", "a.std", "t.std", "t0", "t1.mu",
-                 "t", "L.pred", "q.value", "L", "dL.pred", "p.value", "t.a", "t1")
+                 "t", "q.value", "p.value", "t.a", "L.meta", "m.std")
  
 # MCMC settings
-ni <- 1000000
+ni <- 500000
 nt <- 500
 nb <- 10000
 nc <- 1
@@ -301,9 +331,73 @@ nc <- 1
 VGBE <- bugs(bugs.data, inits, parameters, "PopDyProjFinal.txt", n.chains = nc, n.thin = nt, n.iter = ni, n.burnin = nb,
                  debug = TRUE, bugs.directory = "C:/Program Files (x86)/WinBUGS14", working.directory = getwd())
 
-save(VGBE, file = "VGBE_output.RData")
+save(VGBE, file = "VGBE_output_6_13_18.RData")
+
+
+#--------------------
+# VBGE 2018 paramaterization
+#--------------------
+library(RODBC)
+library(tidyverse)
+library(lubridate)
+library(forcats)
+
+# Connect to Minnow server
+channel <- odbcConnectAccess2007("//minnow.cc.vt.edu/cnre2/Eglin/projects/FlatwoodsSalamander/DriftFence/DriftFenceDatabase/Driftfence Database_GB_29Nov17_FRONT_END.accdb")
+
+# Read in capture table
+captures <- sqlFetch(channel,"Flatwoods Capture") %>%
+  tbl_df() %>%
+  glimpse()
+
+s.meta <- captures %>%
+  filter(Age == 'M') %>%
+  filter(SVL_1stMeasurement != "NA")
+
+# Put all together in a list
+bugs.data = list(
+  # Larval data
+  LL = dat[, 2],
+  age.p = dat[, 1] / 365,
+  N.L = length(dat[, 1]),
+  # Meta data
+  LM = s.meta$SVL_1stMeasurement,
+  N.M = length(s.meta$SVL_1stMeasurement),
+  # Adult data  
+  L0 = SVLt[,1],
+  L = SVLt[,2:50],
+  dt = dt / 365,
+  J = n-1,
+  N.A = length(n)
+)
 
 
 
+#---------------------
+# Model setup
+#---------------------
+
+# Initial values
+inits <- function(){list(Linf1 = 40, k1 = 5, sd.LL = 1, t0 = 0,
+                         sd.m = 1,
+                         Linf2 = 70, k2 = 2, t.m = 0.4, sd.L = 1, t.a = runif(373, 6, 7), centre = 100, prec.t = 1
+                         )}  
+
+# Parameters monitored
+parameters <- c( "Linf1", "k1", "sd.LL", "t0",
+                 "sd.m", "pred.m",
+                 "Linf2", "k2", "t.m", "sd.L", "t.a", "centre", "prec.t")
+
+# MCMC settings
+ni <- 500000
+nt <- 490
+nb <- 10000
+nc <- 3
+
+# Call WinBUGS from R (BRT 40 min)
+VGBE <- bugs(bugs.data, inits, parameters, "VBGE2018.txt", n.chains = nc, n.thin = nt, n.iter = ni, n.burnin = nb,
+             debug = TRUE, bugs.directory = "C:/Program Files (x86)/WinBUGS14", working.directory = getwd())
+
+save(VGBE, file = "VBGE2018_output.RData")
 
 
